@@ -1,4 +1,4 @@
-import rateLimit from 'express-rate-limit';
+import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
 import RedisStore from 'rate-limit-redis';
 import redis from '../redis';
 
@@ -28,7 +28,8 @@ export function createRateLimiter(options: {
         })
       : undefined,
     keyGenerator: (req) => {
-      return `${keyPrefix}${req.ip}:${req.user?.id || 'anonymous'}`;
+      const ip = ipKeyGenerator(req.ip || '');
+      return `${keyPrefix}${ip}:${req.user?.id || 'anonymous'}`;
     },
     handler: (_req, res) => {
       res.status(429).json({

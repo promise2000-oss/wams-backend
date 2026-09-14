@@ -102,6 +102,7 @@ async function start() {
     logger.info('[DB] Connected to PostgreSQL');
 
     try {
+      await redis.connect();
       await redis.ping();
       logger.info('[Redis] Connected');
     } catch {
