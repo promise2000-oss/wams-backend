@@ -1,0 +1,359 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ── Enums ──
+
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+  MANAGER
+  EMPLOYEE
+}
+
+enum UserStatus {
+  ACTIVE
+  DEACTIVATED
+}
+
+enum ShiftStatus {
+  ACTIVE
+  ARCHIVED
+}
+
+enum AttendanceStatus {
+  PRESENT
+  LATE
+  ABSENT
+  EARLY_DEPARTURE
+  ON_LEAVE
+  HALF_DAY
+  HOLIDAY
+  WEEKEND
+  PENDING_CORRECTION
+}
+
+enum AttendanceSource {
+  CLOCK
+  CORRECTION
+  SYSTEM_AUTO_ABSENT
+}
+
+enum CorrectionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  NEEDS_CLARIFICATION
+}
+
+enum LeaveRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+}
+
+enum HalfDayPeriod {
+  AM
+  PM
+}
+
+enum DeliveryChannel {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationPreference {
+  IMMEDIATE
+  DAILY_DIGEST
+}
+
+// ── Tables ──
+
+model Organization {
+  id        String   @id @default(uuid())
+  name      String
+  timezone  String   @default("Africa/Lagos")
+  created_at DateTime @default(now())
+  updated_at DateTime @updatedAt
+
+  users            User[]
+  departments      Department[]
+  shifts           Shift[]
+  leaveTypes       LeaveType[]
+  attendance       Attendance[]
+  auditLogs        AuditLog[]
+
+  @@map("organizations")
+}
+
+model User {
+  id                String     @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  name              String
+  email             String
+  passwordHash      String
+  role              UserRole   @default(EMPLOYEE)
+  phone             String?
+  employeeId        String?
+  departmentId      String?
+  department        Department? @relation(fields: [departmentId], references: [id])
+  managerId         String?
+  manager           User?      @relation("ManagerRelation", fields: [managerId], references: [id])
+  directReports     User[]     @relation("ManagerRelation")
+  shiftId           String?
+  shift             Shift?     @relation(fields: [shiftId], references: [id])
+  position          String?
+  status            UserStatus @default(ACTIVE)
+  dateJoined        DateTime   @default(now())
+  avatarUrl         String?
+  created_at        DateTime   @default(now())
+  updated_at        DateTime   @updatedAt
+
+  attendance          Attendance[]
+  shiftAssignments    ShiftAssignment[]
+  leaveBalances       LeaveBalance[]
+  leaveRequests       LeaveRequest[]
+  notifications       Notification[]
+  reviewedCorrections AttendanceCorrection[] @relation("CorrectionReviewer")
+  approvedLeaves      LeaveRequest[]          @relation("LeaveApprover")
+  refreshTokens       RefreshToken[]
+  corrections         AttendanceCorrection[]
+
+  @@unique([organizationId, email])
+  @@index([organizationId, departmentId])
+  @@map("users")
+}
+
+model RefreshToken {
+  id           String   @id @default(uuid())
+  userId       String
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  token        String   @unique
+  expiresAt    DateTime
+  revokedAt    DateTime?
+  replacedBy   String?
+  createdAt    DateTime @default(now())
+
+  @@index([token])
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model Department {
+  id            String   @id @default(uuid())
+  organizationId String
+  organization  Organization @relation(fields: [organizationId], references: [id])
+  name          String
+  description   String?
+  managerId     String?
+  created_at    DateTime @default(now())
+  updated_at    DateTime @updatedAt
+
+  users         User[]
+
+  @@unique([organizationId, name])
+  @@map("departments")
+}
+
+model Shift {
+  id                   String     @id @default(uuid())
+  organizationId       String
+  organization         Organization @relation(fields: [organizationId], references: [id])
+  name                 String
+  startTime            String     // TIME stored as string "HH:MM"
+  endTime              String     // TIME stored as string "HH:MM"
+  gracePeriodMinutes   Int        @default(0)
+  breakDurationMinutes Int        @default(0)
+  workingDays          String     @default("1,2,3,4,5") // comma-separated: 0=Sun..6=Sat
+  overtimeRules        Json?      // { max_overtime_minutes: number, rate_multiplier: number }
+  status               ShiftStatus @default(ACTIVE)
+  created_at           DateTime   @default(now())
+  updated_at           DateTime   @updatedAt
+
+  shiftAssignments ShiftAssignment[]
+  attendance       Attendance[]
+  users            User[]
+
+  @@map("shifts")
+}
+
+model ShiftAssignment {
+  id            String   @id @default(uuid())
+  organizationId String
+  shiftId       String
+  shift         Shift    @relation(fields: [shiftId], references: [id])
+  employeeId    String
+  employee      User     @relation(fields: [employeeId], references: [id])
+  effectiveFrom DateTime @db.Date
+  effectiveTo   DateTime? @db.Date
+  created_at    DateTime @default(now())
+
+  @@index([employeeId, effectiveFrom, effectiveTo])
+  @@map("shift_assignments")
+}
+
+model Attendance {
+  id                    String           @id @default(uuid())
+  organizationId        String
+  organization          Organization     @relation(fields: [organizationId], references: [id])
+  employeeId            String
+  employee              User             @relation(fields: [employeeId], references: [id])
+  shiftId               String
+  shift                 Shift            @relation(fields: [shiftId], references: [id])
+  workDate              DateTime         @db.Date
+  clockIn               DateTime?
+  clockOut              DateTime?
+  scheduledStart        DateTime         @db.Timestamp
+  scheduledEnd          DateTime         @db.Timestamp
+  lateMinutes           Int              @default(0)
+  earlyDepartureMinutes Int              @default(0)
+  workedMinutes         Int              @default(0)
+  overtimeMinutes       Int              @default(0)
+  status                AttendanceStatus
+  source                AttendanceSource @default(CLOCK)
+  notes                 String?
+  created_at            DateTime         @default(now())
+  updated_at            DateTime         @updatedAt
+
+  corrections AttendanceCorrection[]
+
+  @@unique([employeeId, workDate])
+  @@index([organizationId, workDate, status])
+  @@map("attendance")
+}
+
+model AttendanceCorrection {
+  id                String          @id @default(uuid())
+  organizationId    String
+  attendanceId      String
+  attendance        Attendance      @relation(fields: [attendanceId], references: [id])
+  employeeId        String
+  employee          User            @relation(fields: [employeeId], references: [id])
+  requestedClockIn  DateTime
+  requestedClockOut DateTime
+  reason            String
+  status            CorrectionStatus @default(PENDING)
+  reviewedById      String?
+  reviewer          User?           @relation("CorrectionReviewer", fields: [reviewedById], references: [id])
+  reviewedAt        DateTime?
+  created_at        DateTime        @default(now())
+
+  @@index([employeeId, status])
+  @@map("attendance_corrections")
+}
+
+model LeaveType {
+  id                String   @id @default(uuid())
+  organizationId    String
+  organization      Organization @relation(fields: [organizationId], references: [id])
+  name              String
+  description       String?
+  defaultDays       Int      @default(0)
+  accrualPolicy     Json?    // { type: "monthly"|"quarterly"|"none", rate?: number }
+  carryOverMaxDays  Int      @default(0)
+  status            String   @default("ACTIVE") // ACTIVE | INACTIVE
+  created_at        DateTime @default(now())
+  updated_at        DateTime @updatedAt
+
+  leaveBalances LeaveBalance[]
+  leaveRequests LeaveRequest[]
+
+  @@map("leave_types")
+}
+
+model LeaveBalance {
+  id             String   @id @default(uuid())
+  employeeId     String
+  employee       User     @relation(fields: [employeeId], references: [id])
+  leaveTypeId    String
+  leaveType      LeaveType @relation(fields: [leaveTypeId], references: [id])
+  periodYear     Int
+  allocatedDays  Int      @default(0)
+  usedDays       Int      @default(0)
+  remainingDays  Int      @default(0) // will be computed in app logic
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([employeeId, leaveTypeId, periodYear])
+  @@map("leave_balances")
+}
+
+model LeaveRequest {
+  id              String            @id @default(uuid())
+  organizationId  String
+  employeeId      String
+  employee        User              @relation(fields: [employeeId], references: [id])
+  leaveTypeId     String
+  leaveType       LeaveType         @relation(fields: [leaveTypeId], references: [id])
+  startDate       DateTime          @db.Date
+  endDate         DateTime          @db.Date
+  isHalfDay       Boolean           @default(false)
+  halfDayPeriod   HalfDayPeriod?
+  days            Float
+  reason          String
+  documentUrl     String?
+  status          LeaveRequestStatus @default(PENDING)
+  approvedById    String?
+  approver        User?             @relation("LeaveApprover", fields: [approvedById], references: [id])
+  reviewedAt      DateTime?
+  rejectionReason String?
+  created_at      DateTime          @default(now())
+  updated_at      DateTime          @updatedAt
+
+  @@index([employeeId, status, startDate])
+  @@map("leave_requests")
+}
+
+model Notification {
+  id               String           @id @default(uuid())
+  userId           String
+  user             User             @relation(fields: [userId], references: [id])
+  type             String           // LATE_ARRIVAL, MISSED_CLOCK_OUT, etc.
+  title            String
+  message          String
+  data             Json?
+  deliveryChannel  DeliveryChannel  @default(IN_APP)
+  isRead           Boolean          @default(false)
+  deliveredAt      DateTime?
+  created_at       DateTime         @default(now())
+
+  @@index([userId, isRead, created_at])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id             String   @id @default(uuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  userId         String
+  action         String
+  resourceType   String
+  resourceId     String?
+  oldValue       Json?
+  newValue       Json?
+  ipAddress      String?
+  created_at     DateTime @default(now())
+
+  @@index([organizationId, created_at])
+  @@index([userId, created_at])
+  @@map("audit_logs")
+}
+
+model LeaveApproverDelegate {
+  id          String   @id @default(uuid())
+  managerId   String
+  delegateId  String
+  startDate   DateTime @db.Date
+  endDate     DateTime @db.Date
+  created_at  DateTime @default(now())
+
+  @@index([managerId, startDate, endDate])
+  @@map("leave_approver_delegates")
+}
