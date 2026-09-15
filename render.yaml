@@ -1,5 +1,4 @@
 services:
-  # ── Web Service ──
   - type: web
     name: wams-backend
     runtime: node
@@ -26,10 +25,8 @@ services:
     healthCheckPath: /health
     autoDeploy: true
 
-  # ── PostgreSQL Database ──
-  - type: database
-    name: wams-postgres
-    engine: postgres
+databases:
+  - name: wams-postgres
     plan: free
     databaseName: wams
     ipAllowList: []
