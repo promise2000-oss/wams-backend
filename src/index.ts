@@ -35,29 +35,16 @@ app.use(cors({
 app.use(cookieParser());
 app.use(express.json({ limit: '10mb' }));
 app.use(requestIdMiddleware);
-app.use(generalRateLimiter);
 
-// ── Swagger UI ──
-app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
-  customCss: '.swagger-ui .topbar { display: none }',
-  customSiteTitle: 'WAMS API Documentation',
-  swaggerOptions: {
-    persistAuthorization: true,
-    docExpansion: 'list',
-    filter: true,
-  },
-}));
-app.get('/docs.json', (_req, res) => {
-  res.setHeader('Content-Type', 'application/json');
-  res.send(swaggerSpec);
+// ── Health Endpoints (before rate limiter, for Render probes) ──
+app.get('/', (_req, res) => {
+  res.status(200).json({ status: 'ok' });
 });
 
-// ── Health Endpoint (fast, for Render probes) ──
 app.get('/healthz', (_req, res) => {
   res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
 });
 
-// ── Detailed Health Endpoint ──
 app.get('/health', async (_req, res) => {
   const checks: Record<string, string> = {};
   const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
@@ -86,6 +73,23 @@ app.get('/health', async (_req, res) => {
     checks,
     timestamp: new Date().toISOString(),
   });
+});
+
+app.use(generalRateLimiter);
+
+// ── Swagger UI ──
+app.use('/docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+  customCss: '.swagger-ui .topbar { display: none }',
+  customSiteTitle: 'WAMS API Documentation',
+  swaggerOptions: {
+    persistAuthorization: true,
+    docExpansion: 'list',
+    filter: true,
+  },
+}));
+app.get('/docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
 });
 
 // ── API Routes ──

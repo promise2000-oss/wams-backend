@@ -24,10 +24,6 @@ services:
         sync: false
     healthCheckPath: /healthz
     autoDeploy: true
-    startupProbe:
-      path: /healthz
-      intervalSeconds: 10
-      failureThreshold: 12
 
 databases:
   - name: wams-postgres
