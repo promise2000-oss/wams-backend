@@ -52,12 +52,18 @@ app.get('/docs.json', (_req, res) => {
   res.send(swaggerSpec);
 });
 
-// ── Health Endpoint ──
+// ── Health Endpoint (fast, for Render probes) ──
+app.get('/healthz', (_req, res) => {
+  res.status(200).json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// ── Detailed Health Endpoint ──
 app.get('/health', async (_req, res) => {
   const checks: Record<string, string> = {};
+  const timeout = (ms: number) => new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), ms));
 
   try {
-    await prisma.$queryRaw`SELECT 1`;
+    await Promise.race([prisma.$queryRaw`SELECT 1`, timeout(5000)]);
     checks.postgres = 'ok';
   } catch {
     checks.postgres = 'error';
@@ -65,7 +71,7 @@ app.get('/health', async (_req, res) => {
 
   if (redis) {
     try {
-      await redis.ping();
+      await Promise.race([redis.ping(), timeout(3000)]);
       checks.redis = 'ok';
     } catch {
       checks.redis = 'degraded';

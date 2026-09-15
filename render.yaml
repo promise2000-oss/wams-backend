@@ -4,7 +4,7 @@ services:
     runtime: node
     plan: free
     buildCommand: npm install --include=dev && npx prisma generate && npm run build
-    startCommand: npm run start
+    startCommand: npx prisma migrate deploy && node dist/index.js
     envVars:
       - key: NODE_ENV
         value: production
@@ -22,8 +22,12 @@ services:
         value: 7d
       - key: FRONTEND_URL
         sync: false
-    healthCheckPath: /health
+    healthCheckPath: /healthz
     autoDeploy: true
+    startupProbe:
+      path: /healthz
+      intervalSeconds: 10
+      failureThreshold: 12
 
 databases:
   - name: wams-postgres
