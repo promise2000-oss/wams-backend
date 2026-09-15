@@ -261,7 +261,7 @@ export async function logout(req: Request, res: Response) {
 
   // Also blacklist the current access token
   const authHeader = req.headers.authorization;
-  if (authHeader?.startsWith('Bearer ')) {
+  if (authHeader?.startsWith('Bearer ') && redis) {
     const accessToken = authHeader.split(' ')[1];
     await redis.setex(`token:revoked:${accessToken}`, 15 * 60, '1');
   }
@@ -279,7 +279,7 @@ export async function logoutAll(req: Request, res: Response) {
 
     // Blacklist the current access token
     const authHeader = req.headers.authorization;
-    if (authHeader?.startsWith('Bearer ')) {
+    if (authHeader?.startsWith('Bearer ') && redis) {
       const accessToken = authHeader.split(' ')[1];
       await redis.setex(`token:revoked:${accessToken}`, 15 * 60, '1');
     }
@@ -342,7 +342,10 @@ export async function forgotPassword(req: Request, res: Response) {
       { expiresIn: '1h' }
     );
 
-    await redis.setex(`password-reset:${resetToken}`, 3600, user.id);
+    // Store in Redis if available, otherwise the JWT itself is the token (verified by signature)
+    if (redis) {
+      await redis.setex(`password-reset:${resetToken}`, 3600, user.id);
+    }
 
     // TODO: Send email with reset link
     console.log(`[PasswordReset] Token for ${email}: ${resetToken}`);
@@ -354,7 +357,20 @@ export async function forgotPassword(req: Request, res: Response) {
 export async function resetPassword(req: Request, res: Response) {
   const { token, password } = req.body;
 
-  const userId = await redis.get(`password-reset:${token}`);
+  let userId: string | null = null;
+
+  if (redis) {
+    userId = await redis.get(`password-reset:${token}`);
+  } else {
+    // Fallback: verify the JWT token directly
+    try {
+      const payload = jwt.verify(token, process.env.JWT_ACCESS_SECRET || 'dev-access-secret') as any;
+      if (payload.type === 'reset') userId = payload.sub;
+    } catch {
+      // invalid token
+    }
+  }
+
   if (!userId) {
     return res.status(400).json({
       error: { code: 'INVALID_TOKEN', message: 'Invalid or expired reset token', requestId: req.requestId },
@@ -368,7 +384,9 @@ export async function resetPassword(req: Request, res: Response) {
     data: { passwordHash },
   });
 
-  await redis.del(`password-reset:${token}`);
+  if (redis) {
+    await redis.del(`password-reset:${token}`);
+  }
 
   // Revoke all sessions
   await prisma.refreshToken.updateMany({

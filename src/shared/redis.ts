@@ -2,21 +2,23 @@ import Redis from 'ioredis';
 
 const globalForRedis = globalThis as unknown as { redis: Redis };
 
-export function createRedisClient(): Redis {
+const REDIS_URL = process.env.REDIS_URL;
+
+function createRedisClient(): Redis | null {
+  if (!REDIS_URL) return null;
+
   if (globalForRedis.redis) return globalForRedis.redis;
 
-  const client = new Redis(process.env.REDIS_URL || 'redis://localhost:6379', {
+  const client = new Redis(REDIS_URL, {
     maxRetriesPerRequest: null,
     enableReadyCheck: false,
-    retryStrategy(times: number) {
-      if (times > 3) return null;
+    retryStrategy(times) {
+      if (times > 3) return null; // stop retrying
       return Math.min(times * 200, 2000);
     },
-    lazyConnect: true,
   });
 
   client.on('error', () => {});
-
   client.on('connect', () => {
     console.log('[Redis] Connected');
   });

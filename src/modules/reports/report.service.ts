@@ -7,6 +7,12 @@ import { Request, Response } from 'express';
 export async function generateReport(req: Request, res: Response) {
   const { type, filters } = req.body;
 
+  if (!reportsQueue) {
+    return res.status(503).json({
+      error: { code: 'QUEUE_UNAVAILABLE', message: 'Report generation is temporarily unavailable. Redis is required for background jobs.', requestId: req.requestId },
+    });
+  }
+
   const job = await reportsQueue.add('generate-report', {
     organizationId: req.user!.organizationId,
     userId: req.user!.id,

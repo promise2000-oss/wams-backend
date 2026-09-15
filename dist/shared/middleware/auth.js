@@ -24,11 +24,13 @@ async function authenticate(req, res, next) {
             });
         }
         // Check if token is revoked (logout / force-revocation)
-        const isRevoked = await redis_1.default.get(`token:revoked:${token}`);
-        if (isRevoked) {
-            return res.status(401).json({
-                error: { code: 'TOKEN_REVOKED', message: 'Token has been revoked', requestId: req.requestId },
-            });
+        if (redis_1.default) {
+            const isRevoked = await redis_1.default.get(`token:revoked:${token}`);
+            if (isRevoked) {
+                return res.status(401).json({
+                    error: { code: 'TOKEN_REVOKED', message: 'Token has been revoked', requestId: req.requestId },
+                });
+            }
         }
         const payload = jsonwebtoken_1.default.verify(token, ACCESS_SECRET);
         req.user = {

@@ -62,12 +62,17 @@ app.get('/health', async (_req, res) => {
     catch {
         checks.postgres = 'error';
     }
-    try {
-        await redis_1.default.ping();
-        checks.redis = 'ok';
+    if (redis_1.default) {
+        try {
+            await redis_1.default.ping();
+            checks.redis = 'ok';
+        }
+        catch {
+            checks.redis = 'degraded';
+        }
     }
-    catch {
-        checks.redis = 'degraded';
+    else {
+        checks.redis = 'not-configured';
     }
     const allOk = Object.values(checks).every((v) => v === 'ok');
     res.status(allOk ? 200 : 503).json({
@@ -96,12 +101,17 @@ async function start() {
     try {
         await prisma_1.default.$connect();
         logger_1.default.info('[DB] Connected to PostgreSQL');
-        try {
-            await redis_1.default.ping();
-            logger_1.default.info('[Redis] Connected');
+        if (redis_1.default) {
+            try {
+                await redis_1.default.ping();
+                logger_1.default.info('[Redis] Connected — queues and caching active');
+            }
+            catch {
+                logger_1.default.warn('[Redis] Not available — running without background jobs');
+            }
         }
-        catch {
-            logger_1.default.warn('[Redis] Not available — running without Redis (in-memory rate limiting)');
+        else {
+            logger_1.default.warn('[Redis] REDIS_URL not set — running without background jobs');
         }
         app.listen(PORT, '0.0.0.0', () => {
             logger_1.default.info(`[Server] WAMS Backend running on port ${PORT}`);
@@ -119,7 +129,7 @@ async function shutdown() {
     logger_1.default.info('[Server] Shutting down...');
     await prisma_1.default.$disconnect();
     try {
-        await redis_1.default.quit();
+        await redis_1.default?.quit();
     }
     catch { /* ignore */ }
     process.exit(0);

@@ -63,11 +63,15 @@ app.get('/health', async (_req, res) => {
     checks.postgres = 'error';
   }
 
-  try {
-    await redis.ping();
-    checks.redis = 'ok';
-  } catch {
-    checks.redis = 'degraded';
+  if (redis) {
+    try {
+      await redis.ping();
+      checks.redis = 'ok';
+    } catch {
+      checks.redis = 'degraded';
+    }
+  } else {
+    checks.redis = 'not-configured';
   }
 
   const allOk = Object.values(checks).every((v) => v === 'ok');
@@ -101,12 +105,15 @@ async function start() {
     await prisma.$connect();
     logger.info('[DB] Connected to PostgreSQL');
 
-    try {
-      await redis.connect();
-      await redis.ping();
-      logger.info('[Redis] Connected');
-    } catch {
-      logger.warn('[Redis] Not available — running without Redis (in-memory rate limiting)');
+    if (redis) {
+      try {
+        await redis.ping();
+        logger.info('[Redis] Connected — queues and caching active');
+      } catch {
+        logger.warn('[Redis] Not available — running without background jobs');
+      }
+    } else {
+      logger.warn('[Redis] REDIS_URL not set — running without background jobs');
     }
 
     app.listen(PORT, '0.0.0.0', () => {
@@ -124,7 +131,7 @@ async function start() {
 async function shutdown() {
   logger.info('[Server] Shutting down...');
   await prisma.$disconnect();
-  try { await redis.quit(); } catch { /* ignore */ }
+  try { await redis?.quit(); } catch { /* ignore */ }
   process.exit(0);
 }
 

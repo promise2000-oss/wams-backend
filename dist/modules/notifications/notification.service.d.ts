@@ -14,9 +14,9 @@ export declare function createNotification(data: {
 }): Promise<{
     message: string;
     userId: string;
-    type: string;
     id: string;
     created_at: Date;
+    type: string;
     data: import("@prisma/client/runtime/library").JsonValue | null;
     title: string;
     deliveryChannel: import(".prisma/client").$Enums.DeliveryChannel;

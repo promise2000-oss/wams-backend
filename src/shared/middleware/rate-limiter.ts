@@ -1,12 +1,4 @@
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
-import RedisStore from 'rate-limit-redis';
-import redis from '../redis';
-
-let redisAvailable = false;
-
-redis.on('connect', () => { redisAvailable = true; });
-redis.on('error', () => { redisAvailable = false; });
-redis.on('close', () => { redisAvailable = false; });
+import rateLimit from 'express-rate-limit';
 
 export function createRateLimiter(options: {
   windowMs?: number;
@@ -21,15 +13,8 @@ export function createRateLimiter(options: {
     max,
     standardHeaders: true,
     legacyHeaders: false,
-    store: redisAvailable
-      ? new RedisStore({
-          sendCommand: (command: string, ...args: string[]) => redis.call(command, ...args) as any,
-          prefix: keyPrefix,
-        })
-      : undefined,
     keyGenerator: (req) => {
-      const ip = ipKeyGenerator(req.ip || '');
-      return `${keyPrefix}${ip}:${req.user?.id || 'anonymous'}`;
+      return `${keyPrefix}${req.ip}:${req.user?.id || 'anonymous'}`;
     },
     handler: (_req, res) => {
       res.status(429).json({

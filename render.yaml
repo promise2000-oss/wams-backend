@@ -13,11 +13,6 @@ services:
         fromDatabase:
           name: wams-postgres
           property: connectionString
-      - key: REDIS_URL
-        fromService:
-          name: wams-redis
-          type: redis
-          property: connectionString
       - key: JWT_ACCESS_SECRET
         generateValue: true
       - key: JWT_REFRESH_SECRET
@@ -37,10 +32,3 @@ services:
     plan: free
     databaseName: wams
     ipAllowList: []
-
-  # ── Redis Instance ──
-  - type: redis
-    name: wams-redis
-    plan: free
-    ipAllowList: []
-    maxmemoryPolicy: allkeys-lru

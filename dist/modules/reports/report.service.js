@@ -8,6 +8,11 @@ const pagination_1 = require("../../shared/lib/pagination");
 const audit_service_1 = require("../audit/audit.service");
 async function generateReport(req, res) {
     const { type, filters } = req.body;
+    if (!queues_1.reportsQueue) {
+        return res.status(503).json({
+            error: { code: 'QUEUE_UNAVAILABLE', message: 'Report generation is temporarily unavailable. Redis is required for background jobs.', requestId: req.requestId },
+        });
+    }
     const job = await queues_1.reportsQueue.add('generate-report', {
         organizationId: req.user.organizationId,
         userId: req.user.id,

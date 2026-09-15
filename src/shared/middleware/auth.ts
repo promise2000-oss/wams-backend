@@ -32,11 +32,13 @@ export async function authenticate(req: Request, res: Response, next: NextFuncti
     }
 
     // Check if token is revoked (logout / force-revocation)
-    const isRevoked = await redis.get(`token:revoked:${token}`);
-    if (isRevoked) {
-      return res.status(401).json({
-        error: { code: 'TOKEN_REVOKED', message: 'Token has been revoked', requestId: req.requestId },
-      });
+    if (redis) {
+      const isRevoked = await redis.get(`token:revoked:${token}`);
+      if (isRevoked) {
+        return res.status(401).json({
+          error: { code: 'TOKEN_REVOKED', message: 'Token has been revoked', requestId: req.requestId },
+        });
+      }
     }
 
     const payload = jwt.verify(token, ACCESS_SECRET) as AccessTokenPayload;

@@ -1,19 +1,47 @@
 "use strict";
+var __importDefault = (this && this.__importDefault) || function (mod) {
+    return (mod && mod.__esModule) ? mod : { "default": mod };
+};
 Object.defineProperty(exports, "__esModule", { value: true });
 exports.checkIdempotency = checkIdempotency;
 exports.storeIdempotencyResponse = storeIdempotencyResponse;
 exports.idempotencyMiddleware = idempotencyMiddleware;
-const redis_1 = require("../redis");
+const redis_1 = __importDefault(require("../redis"));
 const IDEMPOTENCY_TTL = 24 * 60 * 60; // 24 hours in seconds
+// In-memory fallback when Redis is unavailable
+const memoryStore = new Map();
+function cleanupMemoryStore() {
+    const now = Date.now();
+    for (const [key, entry] of memoryStore) {
+        if (entry.expires < now)
+            memoryStore.delete(key);
+    }
+}
+setInterval(cleanupMemoryStore, 60_000);
 async function checkIdempotency(key) {
-    const stored = await redis_1.redis.get(`idempotency:${key}`);
-    if (stored) {
-        return { exists: true, response: JSON.parse(stored) };
+    if (redis_1.default) {
+        const stored = await redis_1.default.get(`idempotency:${key}`);
+        if (stored)
+            return { exists: true, response: JSON.parse(stored) };
+    }
+    else {
+        const entry = memoryStore.get(key);
+        if (entry && entry.expires > Date.now()) {
+            return { exists: true, response: JSON.parse(entry.data) };
+        }
+        if (entry)
+            memoryStore.delete(key);
     }
     return { exists: false };
 }
 async function storeIdempotencyResponse(key, response) {
-    await redis_1.redis.setex(`idempotency:${key}`, IDEMPOTENCY_TTL, JSON.stringify(response));
+    const data = JSON.stringify(response);
+    if (redis_1.default) {
+        await redis_1.default.setex(`idempotency:${key}`, IDEMPOTENCY_TTL, data);
+    }
+    else {
+        memoryStore.set(key, { expires: Date.now() + IDEMPOTENCY_TTL * 1000, data });
+    }
 }
 function idempotencyMiddleware(req, res, next) {
     const key = req.headers['idempotency-key'];
