@@ -27,8 +27,9 @@ services:
     autoDeploy: true
 
   # ── PostgreSQL Database ──
-  - type: postgresql
+  - type: database
     name: wams-postgres
+    engine: postgres
     plan: free
     databaseName: wams
     ipAllowList: []
