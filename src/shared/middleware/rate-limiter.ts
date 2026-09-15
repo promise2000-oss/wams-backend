@@ -14,7 +14,7 @@ export function createRateLimiter(options: {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => {
-      return `${keyPrefix}${ipKeyGenerator(req)}:${req.user?.id || 'anonymous'}`;
+      return `${keyPrefix}${ipKeyGenerator(req.ip || '')}:${req.user?.id || 'anonymous'}`;
     },
     handler: (_req, res) => {
       res.status(429).json({
