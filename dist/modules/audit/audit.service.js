@@ -52,8 +52,8 @@ async function createAuditLog(entry) {
 }
 function auditFromRequest(req, action, resourceType, resourceId, oldValue, newValue) {
     return createAuditLog({
-        organizationId: req.user.organizationId,
-        userId: req.user.id,
+        organizationId: req.user?.organizationId,
+        userId: req.user?.id,
         action,
         resourceType,
         resourceId,

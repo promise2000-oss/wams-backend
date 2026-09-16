@@ -66,7 +66,14 @@ async function login(req, res) {
         },
     });
     setRefreshCookie(res, refreshToken, REFRESH_EXPIRES_IN);
-    await (0, audit_service_1.auditFromRequest)(req, 'LOGIN', 'User', user.id);
+    await (0, audit_service_1.createAuditLog)({
+        organizationId: user.organizationId,
+        userId: user.id,
+        action: 'LOGIN',
+        resourceType: 'User',
+        resourceId: user.id,
+        ipAddress: req.ip,
+    });
     res.json({
         accessToken,
         user: {

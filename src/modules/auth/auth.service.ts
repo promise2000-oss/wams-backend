@@ -69,7 +69,14 @@ export async function login(req: Request, res: Response) {
 
   setRefreshCookie(res, refreshToken, REFRESH_EXPIRES_IN);
 
-  await auditFromRequest(req, 'LOGIN', 'User', user.id);
+  await createAuditLog({
+    organizationId: user.organizationId,
+    userId: user.id,
+    action: 'LOGIN',
+    resourceType: 'User',
+    resourceId: user.id,
+    ipAddress: req.ip,
+  });
 
   res.json({
     accessToken,

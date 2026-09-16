@@ -6,6 +6,7 @@ Object.defineProperty(exports, "__esModule", { value: true });
 exports.generalRateLimiter = exports.authRateLimiter = void 0;
 exports.createRateLimiter = createRateLimiter;
 const express_rate_limit_1 = __importDefault(require("express-rate-limit"));
+const express_rate_limit_2 = require("express-rate-limit");
 function createRateLimiter(options = {}) {
     const { windowMs = 15 * 60 * 1000, max = 100, keyPrefix = 'rl:', message } = options;
     return (0, express_rate_limit_1.default)({
@@ -14,7 +15,7 @@ function createRateLimiter(options = {}) {
         standardHeaders: true,
         legacyHeaders: false,
         keyGenerator: (req) => {
-            return `${keyPrefix}${req.ip}:${req.user?.id || 'anonymous'}`;
+            return `${keyPrefix}${express_rate_limit_2.ipKeyGenerator(req)}:${req.user?.id || 'anonymous'}`;
         },
         handler: (_req, res) => {
             res.status(429).json({
