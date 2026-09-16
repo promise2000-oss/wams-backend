@@ -1,4 +1,4 @@
-import rateLimit, { ipKeyGenerator } from 'express-rate-limit';
+import rateLimit from 'express-rate-limit';
 
 export function createRateLimiter(options: {
   windowMs?: number;
@@ -14,7 +14,8 @@ export function createRateLimiter(options: {
     standardHeaders: true,
     legacyHeaders: false,
     keyGenerator: (req) => {
-      return `${keyPrefix}${ipKeyGenerator(req)}:${req.user?.id || 'anonymous'}`;
+      const ip = req.socket?.remoteAddress || req.ip || 'unknown';
+      return `${keyPrefix}${ip}:${(req as any).user?.id || 'anonymous'}`;
     },
     handler: (_req, res) => {
       res.status(429).json({
