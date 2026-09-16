@@ -22,7 +22,7 @@ services:
         value: 7d
       - key: FRONTEND_URL
         sync: false
-    healthCheckPath: /healthz
+    healthCheckPath: /health
     autoDeploy: true
 
 databases:
