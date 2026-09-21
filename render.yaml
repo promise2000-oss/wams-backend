@@ -3,7 +3,7 @@ services:
     name: wams-backend
     runtime: node
     plan: free
-    buildCommand: npm install --include=dev && npx prisma generate
+    buildCommand: npm install --include=dev && npx prisma generate && npm run build
     startCommand: npx prisma migrate deploy && node dist/index.js
     envVars:
       - key: NODE_ENV
@@ -21,7 +21,7 @@ services:
       - key: JWT_REFRESH_EXPIRES_IN
         value: 7d
       - key: FRONTEND_URL
-        sync: false
+        value: "http://localhost:3000,http://localhost:3001"
     healthCheckPath: /health
     autoDeploy: true
 
